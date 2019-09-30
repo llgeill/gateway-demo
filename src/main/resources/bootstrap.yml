@@ -1,0 +1,40 @@
+
+spring:
+  application:
+    name: core-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+    config:
+      fail-fast: true
+      name: core-gateway
+      profile: dev
+      discovery:
+        enabled: true
+        service-id: core-config
+
+
+
+#eureka
+eureka:
+  instance:
+    prefer-ip-address: true
+  client:
+    service-url:
+      defaultZone: http://winfo:winfo@192.168.0.212:1026/eureka/
+
+
+
+logging:
+  level:
+    org:
+      springframework:
+        cloud:
+          gateway:
+            filter:
+              LoadBalancerClientFilter=TRACE:
+    org.springframework.cloud.gateway: debug
+
+
