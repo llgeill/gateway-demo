@@ -58,6 +58,7 @@ public class AccessLogGlobalFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         RecorderServerHttpRequestDecorator requestDecorator = new RecorderServerHttpRequestDecorator(request);
         InetSocketAddress address = requestDecorator.getRemoteAddress();
+        URI url = requestDecorator.getURI();
         Flux<DataBuffer> body = requestDecorator.getBody();
         //读取requestBody传参
         AtomicReference<String> requestBody = new AtomicReference<>("");
@@ -88,11 +89,12 @@ public class AccessLogGlobalFilter implements GlobalFilter, Ordered {
                         ServiceInstance instance= (ServiceInstance) exchange.getAttributes().get(GateWayLogConstant.SERVICE_ID_IP);
                         URI uri=(URI) exchange.getAttributes().get(ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR);
                         routeLogVo.setUrl(uri.toString());
-                        routeLogVo.setIp(instance.getHost());
+                        routeLogVo.setIp(address.getHostName());
                         routeLogVo.setServiceId(instance.getServiceId());
                         routeLogVo.setEndTime(System.currentTimeMillis());
                         routeLogVo.setStateCode(this.getStatusCode().value());
-                        routeLogVo.setResponseParamStr(responseResult);
+                        if(routeLogVo.getResponseParamStr()!=null)routeLogVo.setResponseParamStr(routeLogVo.getResponseParamStr()+responseResult);
+                        else routeLogVo.setResponseParamStr(responseResult);
                         return bufferFactory.wrap(content);
                     }));
                 }
