@@ -112,4 +112,21 @@ public class RouteLogVo {
     public void setEndTime(Long endTime) {
         this.endTime = endTime;
     }
+
+    @Override
+    public String toString() {
+        return "RouteLogVo{" +
+                "ip='" + ip + '\'' +
+                ", url='" + url + '\'' +
+                ", serviceId='" + serviceId + '\'' +
+                ", queryParams=" + queryParams +
+                ", requestHeaders=" + requestHeaders +
+                ", requestBody=" + requestBody +
+                ", responseParam=" + responseParam +
+                ", responseParamStr='" + responseParamStr + '\'' +
+                ", stateCode=" + stateCode +
+                ", startTime=" + startTime +
+                ", endTime=" + endTime +
+                '}';
+    }
 }
