@@ -14,6 +14,7 @@ import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.core.Ordered;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
+import reactor.ipc.netty.http.server.HttpServer;
 
 public class LoadBalancerClientFilter implements GlobalFilter, Ordered {
     private static final Log log = LogFactory.getLog(LoadBalancerClientFilter.class);
@@ -25,7 +26,7 @@ public class LoadBalancerClientFilter implements GlobalFilter, Ordered {
     }
 
     public int getOrder() {
-        return 10100;
+        return LOAD_BALANCER_CLIENT_FILTER_ORDER;
     }
 
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -45,11 +46,10 @@ public class LoadBalancerClientFilter implements GlobalFilter, Ordered {
                 if (schemePrefix != null) {
                     overrideScheme = url.getScheme();
                 }
-
                 URI requestUrl = this.loadBalancer.reconstructURI(new LoadBalancerClientFilter.DelegatingServiceInstance(instance, overrideScheme), uri);
                 log.trace("LoadBalancerClientFilter url chosen: " + requestUrl);
                 exchange.getAttributes().put(ServerWebExchangeUtils.GATEWAY_REQUEST_URL_ATTR, requestUrl);
-                //重写Filter，讲ServiceInstance写到路由上
+                //重写Filter，将ServiceInstance写到路由上
                 exchange.getAttributes().put(GateWayLogConstant.SERVICE_ID_IP, instance);
                 return chain.filter(exchange);
             }
@@ -57,6 +57,7 @@ public class LoadBalancerClientFilter implements GlobalFilter, Ordered {
     }
 
     class DelegatingServiceInstance implements ServiceInstance {
+
         final ServiceInstance delegate;
         private String overrideScheme;
 

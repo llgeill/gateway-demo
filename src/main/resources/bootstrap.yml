@@ -7,13 +7,13 @@ spring:
       discovery:
         locator:
           enabled: true
-    config:
-      fail-fast: true
-      name: core-gateway
-      profile: dev
-      discovery:
-        enabled: true
-        service-id: core-config
+#    config:
+#      fail-fast: true
+#      name: core-gateway
+#      profile: dev
+#      discovery:
+#        enabled: true
+#        service-id: winfo-msa-config
 
 
 
@@ -23,18 +23,14 @@ eureka:
     prefer-ip-address: true
   client:
     service-url:
-      defaultZone: http://winfo:winfo@192.168.0.212:1026/eureka/
+#      defaultZone: http://scf:scf@198.18.2.131:1025/eureka/,http://scf:scf@198.18.2.123:1025/eureka/，http://scf:scf@198.18.2.132:1025/eureka/
+      defaultZone: http://llg:1997729@localhost:1111/eureka/
+
 
 
 
 logging:
   level:
-    org:
-      springframework:
-        cloud:
-          gateway:
-            filter:
-              LoadBalancerClientFilter=TRACE:
     org.springframework.cloud.gateway: debug
 
 
