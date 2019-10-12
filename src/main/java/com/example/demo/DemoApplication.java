@@ -6,6 +6,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.context.annotation.Bean;
 
 @EnableDiscoveryClient
+
 @SpringBootApplication
 public class DemoApplication {
 

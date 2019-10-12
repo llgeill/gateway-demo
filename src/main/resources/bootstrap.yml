@@ -1,7 +1,7 @@
 
 spring:
   application:
-    name: core-gateway
+    name: CORE-GATEWAY
   cloud:
     gateway:
       discovery:
@@ -13,7 +13,7 @@ spring:
 #      profile: dev
 #      discovery:
 #        enabled: true
-#        service-id: winfo-msa-config
+#        service-id: WINFO-MSA-CONFIG
 
 
 
@@ -23,7 +23,9 @@ eureka:
     prefer-ip-address: true
   client:
     service-url:
+#      defaultZone: http://scf:scf@198.18.12.38:1025/eureka/,http://scf:scf@198.18.12.39:1025/eureka/
 #      defaultZone: http://scf:scf@198.18.2.131:1025/eureka/,http://scf:scf@198.18.2.123:1025/eureka/，http://scf:scf@198.18.2.132:1025/eureka/
+
       defaultZone: http://llg:1997729@localhost:1111/eureka/
 
 
