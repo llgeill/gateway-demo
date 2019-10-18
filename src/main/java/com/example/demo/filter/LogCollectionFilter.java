@@ -4,10 +4,12 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.example.demo.constant.GateWayLogConstant;
 import com.example.demo.entity.RouteLogVo;
+import com.netflix.discovery.converters.Auto;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.reactivestreams.Publisher;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.cloud.gateway.route.Route;
@@ -18,6 +20,10 @@ import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.io.buffer.DataBufferUtils;
+import org.springframework.data.elasticsearch.core.ElasticsearchTemplate;
+import org.springframework.data.elasticsearch.core.query.IndexQuery;
+import org.springframework.data.elasticsearch.core.query.IndexQueryBuilder;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -64,14 +70,25 @@ public class LogCollectionFilter implements GlobalFilter, Ordered {
     @Component
     class GetRouteLogVoFilter implements GlobalFilter, Ordered {
 
+        @Autowired
+        ElasticsearchTemplate elasticsearchTemplate;
+        @Autowired
+        MongoTemplate mongoTemplate;
+
         @Override
         public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
             return chain.filter(exchange).then(
                     Mono.fromRunnable(() -> {
+                        //获取当前日志独享
                         RouteLogVo routeLogVo = LogCollectionFilter.routeLogVoThreadLocal.get();
+                        //使用elasticsearch存储日志，并且返回对应id
+                        IndexQuery indexQuery=new IndexQueryBuilder().withObject(routeLogVo).build();
+                        String id = elasticsearchTemplate.index(indexQuery);
+                        //使用mongodb存储日志
+                        mongoTemplate.save(routeLogVo);
                         log.info("总响应时间: " + (routeLogVo.getEndTime() - routeLogVo.getStartTime()));
                         log.info(JSON.toJSONString(routeLogVo));
-                        //TODO 日志对象操作
+                        //移除日志对象
                         LogCollectionFilter.routeLogVoThreadLocal.remove();
                     })
             );
@@ -107,8 +124,8 @@ public class LogCollectionFilter implements GlobalFilter, Ordered {
         routeLogVo.setServiceId(route.getUri().getHost());
         routeLogVo.setUrl(request.getURI().toString());
         routeLogVo.setIp(getIpAddress(request));
-        routeLogVo.setQueryParams(request.getQueryParams());
-        routeLogVo.setRequestHeaders(request.getHeaders());
+        routeLogVo.setQueryParams(request.getQueryParams().toSingleValueMap());
+        routeLogVo.setRequestHeaders(request.getHeaders().toSingleValueMap());
         //根据响应信息进行回调
         ServerHttpResponse response = exchange.getResponse();
         DataBufferFactory bufferFactory = response.bufferFactory();
@@ -223,9 +240,12 @@ public class LogCollectionFilter implements GlobalFilter, Ordered {
      * @return
      */
     private static ServerHttpResponseDecorator fillResponseContent(RouteLogVo routeLogVo, ServerHttpResponse response, DataBufferFactory bufferFactory) {
+
         return new ServerHttpResponseDecorator(response) {
             @Override
             public Mono<Void> writeWith(Publisher<? extends DataBuffer> body) {
+                //flux分段响应，使用string做数据累加
+                AtomicReference<String> atomicReference = new AtomicReference<>();
                 if (body instanceof Flux) {
                     Flux<? extends DataBuffer> fluxBody = (Flux<? extends DataBuffer>) body;
                     return super.writeWith(fluxBody.map(dataBuffer -> {
@@ -234,18 +254,18 @@ public class LogCollectionFilter implements GlobalFilter, Ordered {
                         routeLogVo.setStateCode(this.getStatusCode().value());
                         if (response.getHeaders().getContentType().isCompatibleWith(MediaType.APPLICATION_JSON)) {//响应类型JSON
                             //读取响应信息
-                            byte[] content = fillResponseParamStr(routeLogVo, dataBuffer, response.getHeaders());
+                            byte[] content = fillResponseParamStr(atomicReference, dataBuffer, response.getHeaders());
                             //响应信息累加完毕则String->Map
                             try {
-                                JSONObject jsonObject = JSONObject.parseObject(routeLogVo.getResponseParamStr());
+                                JSONObject jsonObject = JSONObject.parseObject(atomicReference.get());
                                 routeLogVo.setResponseParam(jsonObject.getInnerMap());
-                                String routeLogVoJSON = JSON.toJSONString(routeLogVo);
                             } catch (Exception e) {
                                 log.info("响应数据正在读取");
                             }
                             //读取响应信息后需要重新包装回去
                             return bufferFactory.wrap(content);
                         } else if (response.getHeaders().getContentType().isCompatibleWith(MediaType.APPLICATION_OCTET_STREAM)) {//响应类型application/octet-stream
+                            //读取响应信息
                             String filename = response.getHeaders().getContentDisposition().getFilename();
                             String name = response.getHeaders().getContentDisposition().getName();
                             if (filename != null && name != null) {
@@ -253,9 +273,9 @@ public class LogCollectionFilter implements GlobalFilter, Ordered {
                                 map.put(name, "filename: " + filename);
                                 routeLogVo.setResponseParam(map);
                             }
-                        } else if (response.getHeaders().getContentType().isCompatibleWith(MediaType.TEXT_PLAIN)) {
+                        } else if (response.getHeaders().getContentType().isCompatibleWith(MediaType.TEXT_PLAIN)&&response.getHeaders().getContentLength()<GateWayLogConstant.RESPONSE_CONTENT_LENGTH_MAX) {
                             //读取响应信息
-                            byte[] content = fillResponseParamStr(routeLogVo, dataBuffer, response.getHeaders());
+                            byte[] content = fillResponseParamStr(atomicReference, dataBuffer, response.getHeaders());
                             //读取响应信息后需要重新包装回去
                             return bufferFactory.wrap(content);
                         } else {
@@ -272,11 +292,11 @@ public class LogCollectionFilter implements GlobalFilter, Ordered {
     /**
      * 将字节流中的响应信息填充到日志对象，并将字节流返回做重新包装，防止数据丢失
      *
-     * @param routeLogVo 日志对象
+     * @param atomicReference 日志对象
      * @param dataBuffer 数据流
      * @return
      */
-    private static byte[] fillResponseParamStr(RouteLogVo routeLogVo, DataBuffer dataBuffer, HttpHeaders headers) {
+    private static byte[] fillResponseParamStr(AtomicReference<String> atomicReference, DataBuffer dataBuffer, HttpHeaders headers) {
         //读取原数据
         byte[] content = new byte[dataBuffer.readableByteCount()];
         dataBuffer.read(content);
@@ -290,10 +310,10 @@ public class LogCollectionFilter implements GlobalFilter, Ordered {
         }
         String responseResult = new String(content, Charset.forName("UTF-8"));
         //响应信息累加
-        if (routeLogVo.getResponseParamStr() != null) {
-            routeLogVo.setResponseParamStr(routeLogVo.getResponseParamStr() + responseResult);
-        } else {
-            routeLogVo.setResponseParamStr(responseResult);
+        if(atomicReference.get()!=null){
+            atomicReference.set(atomicReference.get()+responseResult);
+        }else{
+            atomicReference.set(responseResult);
         }
         //返回原数据引用
         return wrapContent;
@@ -340,6 +360,11 @@ public class LogCollectionFilter implements GlobalFilter, Ordered {
         return XFor;
     }
 
+    /**
+     * 对部分压缩内容进行解压
+     * @param content
+     * @return
+     */
     public static byte[] unGzip(byte[] content) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         GZIPInputStream gis = null;
@@ -351,7 +376,7 @@ public class LogCollectionFilter implements GlobalFilter, Ordered {
                 baos.write(buffer, 0, n);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            log.warn("响应信息经gzip解压失败！");
         }
         return baos.toByteArray();
     }

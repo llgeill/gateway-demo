@@ -1,5 +1,13 @@
 
 spring:
+  data:
+    elasticsearch:
+      cluster-name: elasticsearch
+      cluster-nodes: 127.0.0.1:9300
+    mongodb:
+      host: localhost
+      database: test
+      port: 27017
   application:
     name: CORE-GATEWAY
   cloud:
@@ -14,8 +22,6 @@ spring:
 #      discovery:
 #        enabled: true
 #        service-id: WINFO-MSA-CONFIG
-
-
 
 #eureka
 eureka:

@@ -1,27 +1,52 @@
 package com.example.demo.entity;
 
-import com.alibaba.fastjson.annotation.JSONField;
-import org.springframework.http.HttpHeaders;
-import org.springframework.util.MultiValueMap;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.FieldType;
 
-import java.util.HashMap;
+
 import java.util.Map;
 
+
+@Document(indexName = "log", type = "routelog",shards = 1, replicas = 1)
 public class RouteLogVo {
+    @Id
+    private String id;
     //请求地址
+    @Field(type = FieldType.Keyword)
     private String ip;
     //请求url
+    @Field(type = FieldType.Keyword)
     private String url;
+
     //服务名称
+//    @Field(type = FieldType.Text,analyzer = "ik_max_word")
+    @Field(type = FieldType.Keyword)
     private String serviceId;
-    private MultiValueMap<String, String> queryParams;
-    private HttpHeaders requestHeaders;
+
+    //url参数
+    private Map<String, String> queryParams;
+
+    //请求头
+    private Map<String,String> requestHeaders;
+
+    //请求体
     private Map<String,Object> requestBody;
+
+    //响应体
     private Map<String,Object> responseParam;
-    @JSONField(serialize = false)
-    private String responseParamStr;
+
+    //状态码
+    @Field(type = FieldType.Integer)
     private Integer stateCode;
+
+    //开始时间
+    @Field(type = FieldType.Long)
     private Long startTime;
+
+    //结束时间
+    @Field(type = FieldType.Long)
     private Long endTime;
 
 
@@ -49,19 +74,19 @@ public class RouteLogVo {
         this.serviceId = serviceId;
     }
 
-    public MultiValueMap<String, String> getQueryParams() {
+    public Map<String, String> getQueryParams() {
         return queryParams;
     }
 
-    public void setQueryParams(MultiValueMap<String, String> queryParams) {
+    public void setQueryParams(Map<String, String> queryParams) {
         this.queryParams = queryParams;
     }
 
-    public HttpHeaders getRequestHeaders() {
+    public Map getRequestHeaders() {
         return requestHeaders;
     }
 
-    public void setRequestHeaders(HttpHeaders requestHeaders) {
+    public void setRequestHeaders(Map requestHeaders) {
         this.requestHeaders = requestHeaders;
     }
 
@@ -79,14 +104,6 @@ public class RouteLogVo {
 
     public void setResponseParam(Map<String, Object> responseParam) {
         this.responseParam = responseParam;
-    }
-
-    public String getResponseParamStr() {
-        return responseParamStr;
-    }
-
-    public void setResponseParamStr(String responseParamStr) {
-        this.responseParamStr = responseParamStr;
     }
 
     public Integer getStateCode() {
@@ -113,6 +130,7 @@ public class RouteLogVo {
         this.endTime = endTime;
     }
 
+
     @Override
     public String toString() {
         return "RouteLogVo{" +
@@ -123,7 +141,6 @@ public class RouteLogVo {
                 ", requestHeaders=" + requestHeaders +
                 ", requestBody=" + requestBody +
                 ", responseParam=" + responseParam +
-                ", responseParamStr='" + responseParamStr + '\'' +
                 ", stateCode=" + stateCode +
                 ", startTime=" + startTime +
                 ", endTime=" + endTime +
